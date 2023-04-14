@@ -7,9 +7,19 @@ except ImportError:
     import ConfigParser as configparser
 
 
-if len(set(('develop', 'bdist_wheel', 'bdist_egg', 'bdist_rpm', 'bdist',
-            'sdist', 'bdist_wheel', 'bdist_dumb',
-            'bdist_wininst', 'install_egg_info', 'egg_info', 'easy_install')).intersection(sys.argv)) > 0:
+if {
+    'develop',
+    'bdist_egg',
+    'bdist_rpm',
+    'bdist',
+    'sdist',
+    'bdist_wheel',
+    'bdist_dumb',
+    'bdist_wininst',
+    'install_egg_info',
+    'egg_info',
+    'easy_install',
+}.intersection(sys.argv):
     # monkey patch distutils
     from setuptools import setup
     from setuptools.command.install import install
@@ -26,7 +36,7 @@ def set_default_options(optfile):
     config.read(optfile)
     with open(optfile, 'w') as fp:
         config.write(fp)
-    print('cottoncandy configuration file: %s'%optfile)
+    print(f'cottoncandy configuration file: {optfile}')
 
 
 class my_install(install):
@@ -36,8 +46,8 @@ class my_install(install):
         set_default_options(optfile[0])
 
 
-if not 'extra_setuptools_args' in globals():
-    extra_setuptools_args = dict()
+if 'extra_setuptools_args' not in globals():
+    extra_setuptools_args = {}
 
 long_description = """
 A python scientific library for storing and accessing numpy array data on S3. This is achieved by reading arrays from memory and downloading arrays directly into memory. This means that you don't have to download your array to disk, and then load it from disk into your python session."""

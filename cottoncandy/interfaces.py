@@ -120,7 +120,7 @@ class BasicInterface(InterfaceObject):
             if backend == 's3' and bucket_name:
                 print('Available buckets:')
                 self.show_buckets()
-                print('Current bucket: {}'.format(self.backend_interface.bucket_name))
+                print(f'Current bucket: {self.backend_interface.bucket_name}')
             elif backend == 'gdrive':
                 print('Google drive backend instantiated.')
 
@@ -129,7 +129,7 @@ class BasicInterface(InterfaceObject):
             details = (__package__, self.bucket_name, self.backend_interface.url)
             return '%s.backend_interface <bucket:%s on %s>' % details
         else:
-            return '{}.backend_interface on Google Drive'.format(__package__)
+            return f'{__package__}.backend_interface on Google Drive'
 
     def _get_bucket_name(self, bucket_name):
         return self.backend_interface._get_bucket_name(bucket_name)
@@ -141,9 +141,8 @@ class BasicInterface(InterfaceObject):
     def bucket_name(self):
         if isinstance(self.backend_interface, S3Client):
             return self.backend_interface.bucket_name
-        else:
-            print('Google drive has no concept of buckets')
-            return None
+        print('Google drive has no concept of buckets')
+        return None
 
     @clean_object_name
     def exists_object(self, object_name, bucket_name=None, raise_err=False):
@@ -159,7 +158,7 @@ class BasicInterface(InterfaceObject):
         """
         exists = self.backend_interface.check_file_exists(object_name, bucket_name)
         if raise_err and not exists:
-            raise FileNotFoundError('Object not found: ' + object_name)
+            raise FileNotFoundError(f'Object not found: {object_name}')
         else:
             return exists
 
@@ -289,7 +288,9 @@ class BasicInterface(InterfaceObject):
             try:
                 print_objects(object_list)
             except botocore.exceptions.PaginationError:
-                print('Loads of objects in "%s". Increasing page_size by 100x...' % self.bucket_name)
+                print(
+                    f'Loads of objects in "{self.bucket_name}". Increasing page_size by 100x...'
+                )
                 object_list = self.backend_interface.list_objects(limit = limit, page_size = page_size * 100)
                 print_objects(object_list)
         else:
@@ -364,7 +365,7 @@ class BasicInterface(InterfaceObject):
                     self.upload_from_directory(flpath, obname,
                                                recursive=recursive,
                                                ExtraArgs=ExtraArgs)
-        print('Uploaded "%s" to "%s"'%(disk_path, cloud_path))
+        print(f'Uploaded "{disk_path}" to "{cloud_path}"')
 
     @clean_object_name
     def download_to_file(self, object_name, file_name):
@@ -462,8 +463,7 @@ class BasicInterface(InterfaceObject):
         data_object : object
         """
         object_to_upload = StringIO(pickle.dumps(data_object))
-        response = self.upload_object(object_name, object_to_upload, acl=acl, **metadata)
-        return response
+        return self.upload_object(object_name, object_to_upload, acl=acl, **metadata)
 
     @clean_object_name
     def download_pickle(self, object_name):
@@ -531,8 +531,7 @@ class ArrayInterface(BasicInterface):
         arr_strio = StringIO()
         np.save(arr_strio, array)
         arr_strio.seek(0)
-        response = self.upload_object(object_name, arr_strio, acl, **metadata)
-        return response
+        return self.upload_object(object_name, arr_strio, acl, **metadata)
 
     @clean_object_name
     def download_npy_array(self, object_name):
@@ -547,8 +546,7 @@ class ArrayInterface(BasicInterface):
         array : np.ndarray
         """
         self.exists_object(object_name, raise_err=True)
-        array = np.load(StringIO(self.download_object(object_name)))
-        return array
+        return np.load(StringIO(self.download_object(object_name)))
 
     @clean_object_name
     def upload_raw_array(self, object_name, array, compression=DO_COMPRESSION, acl=DEFAULT_ACL, **metadata):
@@ -594,8 +592,11 @@ class ArrayInterface(BasicInterface):
                                   "Try `compression='Zstd'` instead."))
 
         order = 'C' if array.flags.carray else 'F'
-        if ((not array.flags['%s_CONTIGUOUS' % order] and six.PY2) or
-            (not array.flags['C_CONTIGUOUS'] and six.PY3)):
+        if (
+            not array.flags[f'{order}_CONTIGUOUS']
+            and six.PY2
+            or (not array.flags['C_CONTIGUOUS'] and six.PY3)
+        ):
             warn('Non-contiguous array. Creating copy (will use extra memory)...')
 
             if six.PY3 and order == 'F':
@@ -611,14 +612,9 @@ class ArrayInterface(BasicInterface):
                     compression=str(compression),
                     order=order)
 
-        # check for conflicts in metadata
-        metadata_keys = []
-        for k in metadata.keys():
-            # check for conflicts in metadata
-            metadata_keys.append(k in meta)
-
+        metadata_keys = [k in meta for k in metadata]
         assert not any(metadata_keys)
-        meta.update(metadata)
+        meta |= metadata
 
         if compression is False:
             filestream = StringIO(array.data)
@@ -642,9 +638,8 @@ class ArrayInterface(BasicInterface):
             data_nbytes = get_fileobject_size(filestream)
             print('Compressed to %0.2f%% the size'%(data_nbytes / float(orig_nbytes) * 100))
         else:
-            raise ValueError('Unknown compression scheme: %s'%compression)
-        response = self.upload_object(object_name, filestream, acl=acl, **meta)
-        return response
+            raise ValueError(f'Unknown compression scheme: {compression}')
+        return self.upload_object(object_name, filestream, acl=acl, **meta)
 
     @clean_object_name
     def download_raw_array(self, object_name, buffersize=2**16, **kwargs):
@@ -679,9 +674,7 @@ class ArrayInterface(BasicInterface):
 
 
         if 'gzip' in arraystream.metadata:
-            # Backward compatibility, over-write "compression" value
-            isgzipped = string2bool(arraystream.metadata['gzip'])
-            if isgzipped:
+            if isgzipped := string2bool(arraystream.metadata['gzip']):
                 arraystream.metadata['compression'] = 'gzip'
             else:
                 arraystream.metadata['compression'] = 'False'
@@ -733,7 +726,7 @@ class ArrayInterface(BasicInterface):
                 _ = self.upload_raw_array(name, np.asarray(v), acl=acl)
 
         if verbose:
-            print('uploaded arrays in "%s"' % object_name)
+            print(f'uploaded arrays in "{object_name}"')
 
     @clean_object_name
     def cloud2dict(self, object_root, verbose=True, keys=None, **metadata):
@@ -766,7 +759,7 @@ class ArrayInterface(BasicInterface):
             subdirs = [os.path.split(t)[-1] for t in subdirs]
 
         if not subdirs:
-            print('Nothing found in "%s"' % object_root)
+            print(f'Nothing found in "{object_root}"')
             return
 
         for subdir in subdirs:
@@ -777,14 +770,14 @@ class ArrayInterface(BasicInterface):
                 try:
                     arr = self.download_raw_array(path)
                 except KeyError as e:
-                    print('Could not download "%s: missing %s from metadata"' % (path, e))
+                    print(f'Could not download "{path}: missing {e} from metadata"')
                     arr = None
                 datadict[subdir] = arr
             else:
                 datadict[subdir] = self.cloud2dict(path)
 
         if verbose:
-            print('Downloaded arrays in "%s"' % object_root)
+            print(f'Downloaded arrays in "{object_root}"')
 
         return datadict
 
@@ -858,7 +851,7 @@ class ArrayInterface(BasicInterface):
 
         # convert to dask convention (sorry)
         details = [t[0] for t in metadata['dask']]
-        dimension_sizes = [dict() for idx in range(arr.ndim)]
+        dimension_sizes = [{} for _ in range(arr.ndim)]
         for dim, chunks in enumerate(zip(*details)):
             for sample_idx, chunk_idx in enumerate(chunks):
                 if chunk_idx not in dimension_sizes[dim]:
@@ -960,13 +953,12 @@ class ArrayInterface(BasicInterface):
         # Get type, shape
         arrtype = metadata['type']
         shape = metadata['shape']
-        # Get data
-        d = dict()
-        for attr in metadata['attrs']:
-            d[attr] = self.download_raw_array(self.pathjoin(object_name, attr))
-
-        if arrtype == 'csr':
-            arr = csr_matrix((d['data'], d['indices'], d['indptr']),
+        d = {
+            attr: self.download_raw_array(self.pathjoin(object_name, attr))
+            for attr in metadata['attrs']
+        }
+        if arrtype == 'bsr':
+            arr = bsr_matrix((d['data'], d['indices'], d['indptr']),
                              shape = shape)
         elif arrtype == 'coo':
             arr = coo_matrix((d['data'], (d['row'], d['col'])),
@@ -974,8 +966,8 @@ class ArrayInterface(BasicInterface):
         elif arrtype == 'csc':
             arr = csc_matrix((d['data'], d['indices'], d['indptr']),
                              shape = shape)
-        elif arrtype == 'bsr':
-            arr = bsr_matrix((d['data'], d['indices'], d['indptr']),
+        elif arrtype == 'csr':
+            arr = csr_matrix((d['data'], d['indices'], d['indptr']),
                              shape = shape)
         elif arrtype == 'dia':
             arr = dia_matrix((d['data'], d['offsets']), shape = shape)
@@ -1139,21 +1131,18 @@ class FileSystemInterface(BasicInterface):
         -------
 
         """
-        matches = []
         if '/' not in pattern:	# end tree, list all objects
             return self.backend_interface.list_objects(True)
 
         nextFolderExp = r'^/?[^/]*/'
-        nextFolder = re.match(nextFolderExp, pattern).group(0)
+        nextFolder = re.match(nextFolderExp, pattern)[0]
         pattern = re.sub(nextFolderExp, '', pattern)
 
         if '*' not in nextFolder:	# no wildcard, simply cd into it
             self.backend_interface.cd(nextFolder)
         else:						# find all wildcard matches and recursively glob them
             files = self.backend_interface.list_objects()
-            for f in files:
-                matches.append(self.glob_google_drive())
-
+            matches = [self.glob_google_drive() for _ in files]
         # TODO: finish this
 
         return
@@ -1216,7 +1205,7 @@ class FileSystemInterface(BasicInterface):
         if has_real_magic(directory):
             raise NotImplementedError('Wildcards not implemented')
 
-        if (directory != '') and (directory != '/'):
+        if directory not in ['', '/']:
             directory = remove_root(directory)
         directory = remove_trivial_magic(directory)
         directory = mk_aws_path(directory)
@@ -1224,13 +1213,13 @@ class FileSystemInterface(BasicInterface):
         if not os.path.exists(disk_name):
             os.mkdir(disk_name)
 
-        files = self.glob(directory + '*')
+        files = self.glob(f'{directory}*')
         for f in files:
             if f[-1] == '/':
                 continue
             subpath = re.sub(directory, '', f)
             path = os.path.join(disk_name, subpath)
-            subfolder = re.match('.*\/', path).group(0)
+            subfolder = re.match('.*\/', path)[0]
             if not os.path.exists(subfolder):
                 os.makedirs(subfolder)
             self.download_to_file(f, path)
@@ -1329,17 +1318,16 @@ class FileSystemInterface(BasicInterface):
             return self.backend_interface.delete(object_name, recursive, delete)
 
         has_objects = len(self.ls(object_name)) > 0
-        if has_objects:
-            if recursive:
-                all_objects = self.glob(object_name)
-                print('deleting %i objects...' % len(all_objects))
-                for obname in self.glob(object_name):
-                    _ = self.get_object(obname).delete()
-                return
+        if has_objects and recursive:
+            all_objects = self.glob(object_name)
+            print('deleting %i objects...' % len(all_objects))
+            for obname in self.glob(object_name):
+                _ = self.get_object(obname).delete()
+            return
 
         msg = "cannot remove '%s': use `recursive` to remove branch" \
-            if has_objects else \
-            "nothing found under '%s"
+                if has_objects else \
+                "nothing found under '%s"
         print(msg % object_name)
 
     def get_object_owner(self, object_name):
@@ -1349,11 +1337,10 @@ class FileSystemInterface(BasicInterface):
             acl = ob.Acl()
             info = acl.owner
         except botocore.exceptions.ClientError as e:
-            if 's3cmd-attrs' in ob.metadata:
-                info = ob.metadata['s3cmd-attrs'].split('/')
-                info = dict(map(lambda x: x.split(':'), info))
-            else:
+            if 's3cmd-attrs' not in ob.metadata:
                 raise e
+            info = ob.metadata['s3cmd-attrs'].split('/')
+            info = dict(map(lambda x: x.split(':'), info))
         print(info)
 
 
@@ -1413,7 +1400,9 @@ class EncryptedInterface(DefaultInterface):
                                                  url = url, *args, **kwargs)
 
         if encryption not in ['AES', 'RSA']:
-            raise ValueError('Encryption type {} not recognised. Currently AES and RSA are available'.format(encryption))
+            raise ValueError(
+                f'Encryption type {encryption} not recognised. Currently AES and RSA are available'
+            )
         self.encryption = encryption
         if encryption == 'AES':
             self.encryptor = AESEncryption(key)
@@ -1425,11 +1414,11 @@ class EncryptedInterface(DefaultInterface):
 
         if self.encryption == 'AES':
             encrypted_stream = self.encryptor.encrypt_stream(body)
-            return self.backend_interface.upload_stream(encrypted_stream, object_name, metadata, acl)
         else:
             encrypted_stream, encrypted_key = self.encryptor.encrypt_stream(body)
             metadata['key'] = b64encode(encrypted_key)
-            return self.backend_interface.upload_stream(encrypted_stream, object_name, metadata, acl)
+
+        return self.backend_interface.upload_stream(encrypted_stream, object_name, metadata, acl)
 
     def download_stream(self, object_name):
 

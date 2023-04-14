@@ -11,34 +11,23 @@ import cottoncandy as cc
 # globals
 ##############################
 
-DATE = datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
+DATE = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
 
-prefix = 'testcc/%s/py%s'%(DATE, sys.version[:6])
+prefix = f'testcc/{DATE}/py{sys.version[:6]}'
 object_name = os.path.join(prefix, 'test')
 
 
-# login
-##############################
+# for travis testing on AWS.
+bucket_name = os.environ['DL_BUCKET_NAME']
+AK = os.environ['DL_ACCESS_KEY']
+SK = os.environ['DL_SECRET_KEY']
+URL = os.environ['DL_URL']
 
-if True:
-    # for travis testing on AWS.
-    bucket_name = os.environ['DL_BUCKET_NAME']
-    AK = os.environ['DL_ACCESS_KEY']
-    SK = os.environ['DL_SECRET_KEY']
-    URL = os.environ['DL_URL']
-
-    cci = cc.get_interface(bucket_name,
-                           ACCESS_KEY=AK,
-                           SECRET_KEY=SK,
-                           endpoint_url=URL,
-                           verbose=False)
-else:
-    ##############################
-    # Warning
-    ##############################
-    # This will use your defaults to run the tests on.
-    # If you use AWS, you might incur costs.
-    cci = cc.get_interface()
+cci = cc.get_interface(bucket_name,
+                       ACCESS_KEY=AK,
+                       SECRET_KEY=SK,
+                       endpoint_url=URL,
+                       verbose=False)
 
 
 

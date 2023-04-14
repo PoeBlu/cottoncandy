@@ -157,9 +157,8 @@ class GDriveClient(CCBackEnd):
         if path is not None:
             path = re.sub('^\./', '', path)
         current_directory = self.current_directory_object
-        if path is not None and len(path) > 0:
-            if not self.cd(path):
-                return
+        if path is not None and len(path) > 0 and not self.cd(path):
+            return
         list = self.list_objects(names_only = True)
         if path is not None:
             self.current_directory_object = current_directory
@@ -181,12 +180,13 @@ class GDriveClient(CCBackEnd):
         if directory is not None:
             directory = re.sub('^\./', '', directory)
         current_directory = self.current_directory_object
-        if directory is not None and len(directory) > 0:
-            if not self.cd(directory):
-                return
+        if directory is not None and len(directory) > 0 and not self.cd(directory):
+            return
         list = self.list_objects()
         for item in list:
-            print('{} {}'.format('d' if item['mimeType'] == 'application/vnd.google-apps.folder' else ' ', item['title']))
+            print(
+                f"{'d' if item['mimeType'] == 'application/vnd.google-apps.folder' else ' '} {item['title']}"
+            )
         if directory is not None:
             self.current_directory_object = current_directory
             self.rebuild_current_path()
@@ -224,10 +224,10 @@ class GDriveClient(CCBackEnd):
         remainder = None
         if '/' in directory:  # not a simple change, so we just process the first one only each turn
             directory = re.sub('/$', '', directory)
-            if '/' in directory:  # if it wasn't just a ending slash
-                dirs = re.split('/', directory, 1)
-                directory = dirs[0]
-                remainder = dirs[1]
+        if '/' in directory:  # if it wasn't just a ending slash
+            dirs = re.split('/', directory, 1)
+            directory = dirs[0]
+            remainder = dirs[1]
 
         if directory == '..':  # move up one
             if self.current_directory_object['parents'][0]['isRoot']:
@@ -237,25 +237,27 @@ class GDriveClient(CCBackEnd):
         elif directory in ['/', '']:  # change to root
             self.current_directory_object = self.get_file_by_ID('root')
         else:  # move down one
-            directories = self.drive.ListFile({'q': 'title="{}" and "{}" in parents and mimeType = \'application/vnd.google-apps.folder\' and trashed = false'.format(directory, self.current_directory_id)}).GetList()
+            directories = self.drive.ListFile(
+                {
+                    'q': f"""title="{directory}" and "{self.current_directory_id}" in parents and mimeType = \'application/vnd.google-apps.folder\' and trashed = false"""
+                }
+            ).GetList()
             if len(directories) < 1:
                 if not make_if_not_exist:
-                    print('No such directory: {}'.format(directory))
+                    print(f'No such directory: {directory}')
                     return False
                 else:
                     directories.append(self.get_file_by_ID(self.mkdir(directory)))
             if len(directories) > 1:
                 print('For some reason there\'s more than one result')
                 for item in directories:
-                    print('{}\t{}'.format(item['id'], item['title']))
+                    print(f"{item['id']}\t{item['title']}")
                 return False
             self.current_directory_object = directories[0]
 
         self.rebuild_current_path()
         # recursively cd to the innermost folder
-        if remainder is not None:
-            return self.cd(remainder)
-        return True
+        return self.cd(remainder) if remainder is not None else True
 
     def mkdir(self, folder_name):
         """
@@ -284,7 +286,11 @@ class GDriveClient(CCBackEnd):
                     return None
             folder_name = tokens[-1]
 
-        directories = self.drive.ListFile({'q': 'title="{}" and "{}" in parents and mimeType = \'application/vnd.google-apps.folder\' and trashed=false'.format(folder_name, self.current_directory_id)}).GetList()
+        directories = self.drive.ListFile(
+            {
+                'q': f"""title="{folder_name}" and "{self.current_directory_id}" in parents and mimeType = \'application/vnd.google-apps.folder\' and trashed=false"""
+            }
+        ).GetList()
         if len(directories) > 0:
             print('Folder already exists')
             return None
@@ -319,7 +325,7 @@ class GDriveClient(CCBackEnd):
         if origin is destination:
             print('renaming using move is not supported yet. use the .rename method')
             return False
-        if origin.group(0) == destination.group(0):
+        if origin[0] == destination[0]:
             print('renaming using move is not supported yet. use the .rename method')
             return False
 
@@ -370,7 +376,7 @@ class GDriveClient(CCBackEnd):
             if 'properties' in original.metadata.keys() and len(original.metadata['properties'].keys()) > 0:
                 for key in original.metadata['properties'].keys():
                     if not self.insert_property(copyID, key, original.metadata['properties'][key]):
-                        print('Property copy for {} failed'.format(key))
+                        print(f'Property copy for {key} failed')
             return True
         except Exception as e:
             print (e.__str__())
@@ -447,10 +453,10 @@ class GDriveClient(CCBackEnd):
             cloud_name = tokens[-1]
 
         # metadata
-        metadata = {}
-        metadata['title'] = cloud_name
-        metadata['parents'] = [{'id': self.current_directory_id}]
-
+        metadata = {
+            'title': cloud_name,
+            'parents': [{'id': self.current_directory_id}],
+        }
         # try to upload the file_name
         newfile = self.drive.CreateFile(metadata)
         newfile.Upload()
@@ -458,7 +464,7 @@ class GDriveClient(CCBackEnd):
             newfile.SetContentFile(file_name)
             newfile.Upload()
         except Exception as e:
-            print('Error uploading file_name:\n{}'.format(e.__str__()))
+            print(f'Error uploading file_name:\n{e.__str__()}')
             newfile.delete()
             return False
 
@@ -499,24 +505,21 @@ class GDriveClient(CCBackEnd):
             name = tokens[-1]
 
         # metadata
-        metadata = {}
-        metadata['title'] = name
-        metadata['parents'] = [{'id': self.current_directory_id}]
-
+        metadata = {'title': name, 'parents': [{'id': self.current_directory_id}]}
         newfile = self.drive.CreateFile(metadata)
         newfile.Upload()
         try:
             newfile.content = stream
             newfile.Upload()
         except Exception as e:
-            print('Error uploading stream:\n{}'.format(e.__str__()))
+            print(f'Error uploading stream:\n{e.__str__()}')
             newfile.delete()
             return False
 
         if properties is not None:
             for key in properties.keys():
                 if not self.insert_property(newfile.metadata['id'], key, properties[key]):
-                    print('Property insertion for {} failed'.format(key))
+                    print(f'Property insertion for {key} failed')
 
         if current_directory is not None:
             self.current_directory_object = current_directory
@@ -666,12 +669,17 @@ class GDriveClient(CCBackEnd):
             List of files
         """
         if names_only:
-            files = self.drive.ListFile({'q': "'{}' in parents and trashed={}".format(self.current_directory_id, str(trashed).lower())}).GetList()
-            out = []
-            for f in files:
-                out.append(f['title'])
-            return out
-        return self.drive.ListFile({'q': "'{}' in parents and trashed={}".format(self.current_directory_id, str(trashed).lower())}).GetList()
+            files = self.drive.ListFile(
+                {
+                    'q': f"'{self.current_directory_id}' in parents and trashed={str(trashed).lower()}"
+                }
+            ).GetList()
+            return [f['title'] for f in files]
+        return self.drive.ListFile(
+            {
+                'q': f"'{self.current_directory_id}' in parents and trashed={str(trashed).lower()}"
+            }
+        ).GetList()
 
     def get_file_by_name(self, name):
         """Gets the GoogleDriveFile for a file
@@ -741,12 +749,7 @@ class GDriveClient(CCBackEnd):
             drive_file = tokens[-1]
 
         items = self.list_objects()
-        item = None
-        for i in items:
-            if i['title'] == drive_file:
-                item = i
-                break
-
+        item = next((i for i in items if i['title'] == drive_file), None)
         if current_directory is not None:
             self.current_directory_object = current_directory
             self.rebuild_current_path()
@@ -790,7 +793,7 @@ class GDriveClient(CCBackEnd):
             self.service.properties().insert(fileId = id, body = body).execute()
             return True
         except Exception as e:
-            print('Error: {}'.format(e.__str__()))
+            print(f'Error: {e.__str__()}')
             return False
 
     def get_file_properties(self, id):
@@ -817,7 +820,7 @@ class GDriveClient(CCBackEnd):
                     properties[p['key']] = p['value']
             return properties
         except Exception as e:
-            print('Error: {}'.format(e.__str__()))
+            print(f'Error: {e.__str__()}')
             return None
 
     def store_encryption_key(self, fileID, key64, chunk_size=96):
@@ -845,8 +848,8 @@ class GDriveClient(CCBackEnd):
         for i in range(nChuncks):
             start = i * chunk_size
             end = (i + 1) * chunk_size
-            end = end if end < len(key64) else len(key64)
-            if not self.insert_property(fileID, 'keyChunk{}'.format(i), key64[start:end]):
+            end = min(end, len(key64))
+            if not self.insert_property(fileID, f'keyChunk{i}', key64[start:end]):
                 print('Key upload failed')
                 return
 
@@ -863,16 +866,13 @@ class GDriveClient(CCBackEnd):
         key64 : str
             base-64 encoded encryption key
         """
-        key64 = ''
         properties = self.get_file_properties(fileID)
         if 'keyChunks' not in properties:
             print('No stored key')
             return None
         else:
             nChunks = int(properties['keyChunks'])
-            for i in range(nChunks):
-                key64 += properties['keyChunk{}'.format(i)]
-            return key64
+            return ''.join(properties[f'keyChunk{i}'] for i in range(nChunks))
 
     def update_metadata(self, file_name, metadata):
         """Updates the custom properties for a file
@@ -931,35 +931,24 @@ class GDriveClient(CCBackEnd):
 
         if '/' in path:
             # print('/ foound')
-            directory = re.match('^.*/', path).group(0)
+            directory = re.match('^.*/', path)[0]
             path = re.search('[^/]+$', path)
             if path is not None:
-                path = path.group(0)
+                path = path[0]
             # print('\n{}\n{}\n'.format(directory, path))
 
             current_directory = self.current_directory_object
-            if directory is not None:
-                if not self.cd(directory):  # if the directory doesn't actually exist, return empty list
-                    return []
+            if directory is not None and not self.cd(directory):
+                return []
             items = self.list_objects(True)
             if directory is not None:
                 self.current_directory_object = current_directory
                 self.rebuild_current_path()
-            out = []
-            for item in items:
-                out.append(directory + item)
-            # print(out)
-            return out
+            return [directory + item for item in items]
         else:
             items = self.list_objects(True)
 
-            if path is None:
-                return items
-            out = []
-            for item in items:
-                # if re.match(path, item) is not None:	# Ipython takes care of filtering the matches
-                out.append(item)
-            return out
+            return items if path is None else list(items)
 
     def hook_ipython_completer(self):
         """Hooks the autocompleter into ipython

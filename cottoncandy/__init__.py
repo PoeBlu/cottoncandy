@@ -1,6 +1,7 @@
 '''
 '''
 
+
 from __future__ import absolute_import
 import os
 from base64 import b64decode
@@ -23,10 +24,7 @@ force_bucket_creation = string2bool(force_bucket_creation)
 
 encryption = options.config.get('encryption', 'method')
 doencryption = options.config.get('encryption', 'key')
-if string2bool(doencryption):
-    encryptionKey = b64decode()
-else:
-    encryptionKey = False
+encryptionKey = b64decode() if string2bool(doencryption) else False
 
 def get_interface(bucket_name=default_bucket,
                   ACCESS_KEY=ACCESS_KEY,
@@ -78,15 +76,16 @@ def get_interface(bucket_name=default_bucket,
         from botocore.client import Config
         kwargs['config'] = Config(signature_version=DEFAULT_SIGNATURE_VERSION)
 
-    interface = DefaultInterface(bucket_name,
-                                 ACCESS_KEY,
-                                 SECRET_KEY,
-                                 endpoint_url,
-                                 force_bucket_creation,
-                                 verbose=verbose,
-                                 backend = backend,
-                                 **kwargs)
-    return interface
+    return DefaultInterface(
+        bucket_name,
+        ACCESS_KEY,
+        SECRET_KEY,
+        endpoint_url,
+        force_bucket_creation,
+        verbose=verbose,
+        backend=backend,
+        **kwargs
+    )
 
 
 def get_encrypted_interface(bucket_name=default_bucket,
@@ -124,10 +123,17 @@ def get_encrypted_interface(bucket_name=default_bucket,
         ACCESS_KEY = os.path.join(options.userdir, options.config.get('gdrive', 'secrets'))
         SECRET_KEY = os.path.join(options.userdir, options.config.get('gdrive', 'credentials'))
 
-    interface = EncryptedInterface(bucket_name, ACCESS_KEY, SECRET_KEY, endpoint_url,
-                                   encryption, encryptionKey, force_bucket_creation = force_bucket_creation,
-                                   verbose = verbose, backend = backend)
-    return interface
+    return EncryptedInterface(
+        bucket_name,
+        ACCESS_KEY,
+        SECRET_KEY,
+        endpoint_url,
+        encryption,
+        encryptionKey,
+        force_bucket_creation=force_bucket_creation,
+        verbose=verbose,
+        backend=backend,
+    )
 
 
 def get_browser(bucket_name=default_bucket,

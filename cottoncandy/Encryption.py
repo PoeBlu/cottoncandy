@@ -208,7 +208,7 @@ class AESEncryption(Encryption):
         if chunk_size is not None and chunk_size % 16 != 0:
             raise RuntimeError('Bad chunk_size')
         if encrypted_file_name is None:
-            encrypted_file_name = file_name + 'enc'
+            encrypted_file_name = f'{file_name}enc'
         if chunk_size is None:
             chunk_size = self.chunk_size
         if initialisation_vector_size is None:
@@ -438,17 +438,13 @@ class RSAAESEncryption(AESEncryption):
     def can_decrypt(self):
         """Can this object decrypt? i.e. does it have a private RSA key?
         """
-        if not self.RSAcipher:
-            return False
-        return self.RSAcipher.can_decrypt()
+        return self.RSAcipher.can_decrypt() if self.RSAcipher else False
 
     @property
     def can_encrypt(self):
         """Can this object encrypt?, i.e. does it have a public key?
         """
-        if not self.RSAcipher:
-            return False
-        return self.RSAcipher.can_encrypt()
+        return self.RSAcipher.can_encrypt() if self.RSAcipher else False
 
     def generate_key(self, key_size=2048):
         """

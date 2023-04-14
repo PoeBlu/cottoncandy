@@ -36,8 +36,7 @@ def get_keys():
     # try to outload keys
     resulta = get_key_from_s3fs()
     resultb = get_key_from_environ()
-    result = resultb if (resulta is None) else resulta
-    return result
+    return resultb if (resulta is None) else resulta
 
 def generate_AES_key(bytes = 32):
     """Generates a new AES key

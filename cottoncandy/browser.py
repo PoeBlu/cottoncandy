@@ -144,10 +144,10 @@ class S3Directory(S3FSLike):
                 # modify name for tab-completion purposes
                 sdir_copy = sdir[:]
                 # clean numbers
-                sdir_copy = 'NUM_%s'%sdir_copy if has_start_digit(sdir) else sdir_copy
+                sdir_copy = f'NUM_{sdir_copy}' if has_start_digit(sdir) else sdir_copy
                 # clean extension
                 fl, ext = os.path.splitext(sdir_copy)
-                kk = fl+'_DOT_'+ext[1:] if ext else sdir_copy
+                kk = f'{fl}_DOT_{ext[1:]}' if ext else sdir_copy
                 # clean fucking dashes
                 kk = re.sub('-', '_', kk) if '-' in kk else kk
                 self._subdirs[kk] = sdir
@@ -189,11 +189,11 @@ class S3Directory(S3FSLike):
             # allow user-provided paths. useful when >1000 objects
             child_path = os.path.join(self._fullpath, attr)
             assert (self.interface.exists_object(child_path) or \
-                    self.interface.lsdir(child_path))
+                        self.interface.lsdir(child_path))
 
         try:
             has_ext = '.' in child_path # shitty check...
-            ishdf = any([t in child_path for t in HDFEXT])
+            ishdf = any(t in child_path for t in HDFEXT)
 
             if ishdf:
                 return S3HDF5(child_path, interface=self.interface)
@@ -243,7 +243,7 @@ class S3HDF5(S3Directory):
             if key in self._subdirs:
                 dataset_path = os.path.join(self._fullpath, self._subdirs[key])
             else:
-                raise ValueError('"%s" not in %s'%(key, dataset_path))
+                raise ValueError(f'"{key}" not in {dataset_path}')
 
         if self.interface.exists_object(dataset_path):
             return self.interface.download_raw_array(dataset_path)

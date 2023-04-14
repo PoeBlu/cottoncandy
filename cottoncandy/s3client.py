@@ -180,7 +180,7 @@ class S3Client(CCBackEnd):
 
         """
         if not self.check_bucket_exists(bucket_name):
-            raise IOError('Bucket "%s" does not exist' % bucket_name)
+            raise IOError(f'Bucket "{bucket_name}" does not exist')
         self.bucket_name = bucket_name
 
     def get_bucket(self):
@@ -190,8 +190,7 @@ class S3Client(CCBackEnd):
         -------
 
         """
-        s3_bucket = self.connection.Bucket(self.bucket_name)
-        return s3_bucket
+        return self.connection.Bucket(self.bucket_name)
 
     def list_objects(self, **kwargs):
         """Get list of objects from the bucket
@@ -215,11 +214,14 @@ class S3Client(CCBackEnd):
         If you get a 'PaginationError', this means you have
         a lot of items on your bucket and should increase ``page_size``
         """
-        defaults = dict(limit = 1000,
-                        page_size = 1000,
-                        filter = dict(Prefix = SEPARATOR),
-                        )
-        defaults.update(kwargs)
+        defaults = (
+            dict(
+                limit=1000,
+                page_size=1000,
+                filter=dict(Prefix=SEPARATOR),
+            )
+            | kwargs
+        )
         bucket = self.get_bucket()
         prefix = defaults.pop('filter')
 
@@ -232,13 +234,8 @@ class S3Client(CCBackEnd):
             if value is None:
                 continue
             method = getattr(request, method_name)
-            if isinstance(value, dict):
-                request = method(**value)
-            else:
-                request = method(value)
-
-        response = request.all()
-        return response
+            request = method(**value) if isinstance(value, dict) else method(value)
+        return request.all()
 
     @property
     def size(self):
@@ -340,7 +337,7 @@ class S3Client(CCBackEnd):
             file-like stream of object data
         """
         if not self.check_file_exists(object_name):
-            raise IOError('Object "%s" does not exist' % object_name)
+            raise IOError(f'Object "{object_name}" does not exist')
         s3_object = self.get_s3_object(object_name)
         return CloudStream(BytesIO(s3_object.get()['Body'].read()), sanitize_metadata(s3_object.metadata))
 
@@ -417,13 +414,7 @@ class S3Client(CCBackEnd):
         # check if our buffersize is sensible
         if nbytes_total < buffersize:
             npotential = nbytes_total / float(MIN_MPU_SIZE)
-            if npotential > 10:
-                # 10MB sensible minimum for 50MB < x < 100MB (default)
-                buffersize = MIN_MPU_SIZE * 2
-            else:
-                # this file is smaller than chunksize by a little
-                buffersize = MIN_MPU_SIZE
-
+            buffersize = MIN_MPU_SIZE * 2 if npotential > 10 else MIN_MPU_SIZE
         # figure out parts split
         nparts = int(np.floor(nbytes_total / float(buffersize)))
         last_part_offset = int(nbytes_total - nparts * buffersize)
@@ -458,12 +449,12 @@ class S3Client(CCBackEnd):
                              ETag = response['ETag'])
             mpu_info['Parts'].append(part_info)
 
-        # finalize
-        mpu_response = client.complete_multipart_upload(Bucket = self.bucket_name,
-                                                        Key = object_name,
-                                                        UploadId = mpu['UploadId'],
-                                                        MultipartUpload = mpu_info)
-        return mpu_response
+        return client.complete_multipart_upload(
+            Bucket=self.bucket_name,
+            Key=object_name,
+            UploadId=mpu['UploadId'],
+            MultipartUpload=mpu_info,
+        )
 
     def copy(self, source, destination, source_bucket, destination_bucket, overwrite):
         source_bucket = self.get_bucket_name(source_bucket)
@@ -499,9 +490,9 @@ class S3Client(CCBackEnd):
             The children of the path.
         """
         if has_real_magic(path):
-            raise ValueError('Use ``ls()`` when using search patterns: "%s"' % path)
+            raise ValueError(f'Use ``ls()`` when using search patterns: "{path}"')
 
-        if (path != '') and (path != '/'):
+        if path not in ['', '/']:
             path = remove_root(path)
         path = remove_trivial_magic(path)
         path = mk_aws_path(path)

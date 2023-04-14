@@ -50,10 +50,7 @@ ISBOTO_VERBOSE = options.config.get('login', 'verbose_boto')
 ##############################
 
 def sanitize_metadata(metadict):
-    outdict = {}
-    for key,val in metadict.items():
-        outdict[key.lower()] = val
-    return outdict
+    return {key.lower(): val for key, val in metadict.items()}
 
 def pathjoin(a, *p):
     """Join two or more pathname components, inserting SEPARATOR as needed.
@@ -307,10 +304,7 @@ def has_trivial_magic(s):
     istrivial = trivial_magic.match(s) is not None
     magic_check = re.compile('[?[]')
     ismagic = magic_check.search(s) is not None
-    if istrivial and (not ismagic):
-        return True
-    else:
-        return False
+    return istrivial and not ismagic
 
 
 def has_real_magic(s):
@@ -353,14 +347,11 @@ def mk_aws_path(path):
     * /       -> ''
     * ''      -> ''
     """
-    if (path == SEPARATOR) or (path == ''):
+    if path in [SEPARATOR, '']:
         return ''
 
     matcher = re.compile('/$') # at end only
-    if matcher.search(path) is not None:
-        return path
-    else:
-        return path + SEPARATOR
+    return path if matcher.search(path) is not None else path + SEPARATOR
 
 
 ##############################
@@ -427,7 +418,7 @@ def generate_ndarray_chunks(arr, axis=None, buffersize=100*MB):
 
     dim_ranges = map(lambda x: range(x), dim_nchunks)
     iterator = itertools.product(*dim_ranges)
-    for chunk_idx, chunk_coords in enumerate(iterator):
+    for chunk_coords in iterator:
         beg = [chunk_shapes[dim]*cc for dim, cc in enumerate(chunk_coords)]
         end = [min(chunk_shapes[dim]*(cc+1), shape[dim])for dim, cc in enumerate(chunk_coords)]
         slicers = list(map(lambda dim_lims: slice(dim_lims[0],dim_lims[1]), zip(beg,end)))
@@ -446,10 +437,7 @@ def read_buffered(frm, to, buffersize=64):
     '''
     nbytes_total = to.size * to.dtype.itemsize
     if six.PY3:
-        if to.flags['F_CONTIGUOUS']:
-            vw = to.T.view()
-        else:
-            vw = to.view()
+        vw = to.T.view() if to.flags['F_CONTIGUOUS'] else to.view()
         vw.shape = (-1,)                # Must be a ravel-able object
         vw.dtype = np.dtype('uint8')    # 256 values in each byte
 
@@ -521,9 +509,10 @@ class GzipInputStream(object):
             raise IOError("Cannot seek backwards")
 
         # skip forward, in blocks
-        while position > self._offset:
-            if not self.read(min(position - self._offset, self.BLOCK_SIZE)):
-                break
+        while position > self._offset and self.read(
+            min(position - self._offset, self.BLOCK_SIZE)
+        ):
+            pass
 
     def tell(self):
         return self._offset
@@ -540,10 +529,10 @@ class GzipInputStream(object):
         return data
 
     def next(self):
-        line = self.readline()
-        if not line:
+        if line := self.readline():
+            return line
+        else:
             raise StopIteration()
-        return line
 
     def readline(self):
         # make sure we have an entire line
@@ -551,15 +540,13 @@ class GzipInputStream(object):
             self.__fill(len(self._data) + 512)
 
         pos = string.find(self._data, "\n") + 1
-        if pos <= 0:
-            return self.read()
-        return self.read(pos)
+        return self.read() if pos <= 0 else self.read(pos)
 
     def readlines(self):
         lines = []
         while True:
-            line = self.readline()
-            if not line:
+            if line := self.readline():
+                lines.append(line)
+            else:
                 break
-            lines.append(line)
         return lines
